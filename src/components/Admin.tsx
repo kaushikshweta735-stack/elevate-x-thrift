@@ -10,15 +10,19 @@ import type { ContentKey, SiteContent } from "../content";
 import { FIELD_GROUPS } from "../content";
 import {
   firebaseConfig,
+  deleteOrder,
   deleteProduct,
   saveContent,
   saveProduct,
   seedCloud,
+  setOrderStatus,
   signInAdmin,
   signOutAdmin,
   subscribeContent,
+  subscribeOrders,
   subscribeProducts,
   watchAuth,
+  type StoreOrder,
 } from "../lib/firebase";
 import type { Category, Product } from "../data";
 
@@ -288,6 +292,134 @@ function ProductsTab({ cloudReady }: { cloudReady: boolean }) {
   );
 }
 
+/* -------------------------------- orders ------------------------------- */
+
+function orderWhen(ms: number): string {
+  if (!ms) return "—";
+  return new Date(ms).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function OrdersTab({
+  cloudReady,
+  flash,
+}: {
+  cloudReady: boolean;
+  flash: (text: string, ok?: boolean) => void;
+}) {
+  const [orders, setOrders] = useState<StoreOrder[] | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!cloudReady) return;
+    return subscribeOrders((list) => setOrders(list));
+  }, [cloudReady]);
+
+  const act = async (o: StoreOrder, action: "done" | "delete") => {
+    if (action === "delete" && !window.confirm(`Delete the order from “${o.name}”? This is permanent.`)) return;
+    setBusyId(o.docId);
+    try {
+      if (action === "done") {
+        await setOrderStatus(o.docId, o.status === "done" ? "new" : "done");
+        flash(o.status === "done" ? "Moved back to new" : "Marked as done ✓");
+      } else {
+        await deleteOrder(o.docId);
+        flash("Order deleted");
+      }
+    } catch (e) {
+      flash(String(e), false);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const newCount = (orders ?? []).filter((o) => o.status === "new").length;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-bone/50">
+        Orders customers place on the site appear here live —{" "}
+        {orders === null ? "loading…" : `${orders.length} total, ${newCount} new`}
+      </p>
+      {orders !== null && orders.length === 0 && (
+        <div className="glass pop rounded-3xl p-8 text-center">
+          <p className="font-display text-2xl uppercase tracking-widest text-bone/60">No orders yet 🕒</p>
+          <p className="mt-1 text-sm text-bone/40">
+            The moment someone checks out in the bag, their order pops up here — name, phone, items and total.
+          </p>
+        </div>
+      )}
+      {(orders ?? []).map((o) => {
+        const digits = o.phone.replace(/[^0-9]/g, "");
+        const waLink = digits
+          ? `https://wa.me/${digits}?text=${encodeURIComponent(
+              `Hi ${o.name.split(" ")[0] || "there"}! Thanks for ordering from Elevate X Thrift 🖤 Your order: ${o.items
+                .map((i) => i.name)
+                .join(", ")} — total ₹${o.total}. Reply here and we'll sort delivery.`,
+            )}`
+          : "";
+        return (
+          <article
+            key={o.docId}
+            className={`pop glass-dark rounded-2xl p-4 ${o.status === "done" ? "opacity-60" : ""}`}
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <span
+                className={`rounded-full px-3 py-1 font-display text-xs font-bold uppercase tracking-widest ${
+                  o.status === "new" ? "bg-blood text-white" : "bg-[#25d366]/20 text-[#25d366]"
+                }`}
+              >
+                {o.status === "new" ? "● New" : "✓ Done"}
+              </span>
+              <span className="text-xs text-bone/40">{orderWhen(o.placedAt)}</span>
+              <span className="ml-auto font-display text-xl font-bold text-bone">₹{o.total}</span>
+            </div>
+            <div className="mt-2 text-sm">
+              <p className="font-semibold">
+                {o.name} {o.phone && <span className="text-bone/50">· {o.phone}</span>}
+              </p>
+              <ul className="mt-1 space-y-0.5 text-bone/70">
+                {o.items.map((i, k) => (
+                  <li key={k}>
+                    · {i.name} <span className="text-bone/40">₹{i.price}</span>
+                  </li>
+                ))}
+              </ul>
+              {o.note && <p className="mt-1 text-xs italic text-bone/50">“{o.note}”</p>}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {digits && (
+                <a href={waLink} target="_blank" rel="noreferrer" className={btnCls + " bg-[#25d366] text-white"}>
+                  WhatsApp customer
+                </a>
+              )}
+              <button
+                onClick={() => void act(o, "done")}
+                disabled={busyId === o.docId}
+                className={btnCls + " glass text-bone hover:bg-white/10"}
+              >
+                {o.status === "new" ? "Mark done ✓" : "Move to new"}
+              </button>
+              <button
+                onClick={() => void act(o, "delete")}
+                disabled={busyId === o.docId}
+                className={btnCls + " glass text-red-300 hover:bg-white/10"}
+              >
+                Delete
+              </button>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 /* -------------------------------- texts -------------------------------- */
 
 function TextsTab({ content }: { content: SiteContent }) {
@@ -372,7 +504,8 @@ export default function Admin() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(setupDone);
   const [content, setContent] = useState<SiteContent | null>(null);
-  const [tab, setTab] = useState<"products" | "texts">("products");
+  const [tab, setTab] = useState<"products" | "orders" | "texts">("products");
+  const [newOrders, setNewOrders] = useState(0);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -390,6 +523,12 @@ export default function Admin() {
   useEffect(() => {
     if (!setupDone || !user) return;
     return subscribeContent((c) => setContent(c));
+  }, [setupDone, user]);
+
+  /* live "new orders" badge */
+  useEffect(() => {
+    if (!setupDone || !user) return;
+    return subscribeOrders((list) => setNewOrders(list.filter((o) => o.status === "new").length));
   }, [setupDone, user]);
 
   const login = async (e: FormEvent<HTMLFormElement>) => {
@@ -429,6 +568,12 @@ export default function Admin() {
               <>
                 <button onClick={() => setTab("products")} className={btnCls + (tab === "products" ? " bg-blood text-white" : " glass text-bone")}>
                   Products
+                </button>
+                <button onClick={() => setTab("orders")} className={btnCls + (tab === "orders" ? " bg-blood text-white" : " glass text-bone")}>
+                  Orders
+                  {newOrders > 0 && tab !== "orders" && (
+                    <span className="ml-1.5 rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">{newOrders}</span>
+                  )}
                 </button>
                 <button onClick={() => setTab("texts")} className={btnCls + (tab === "texts" ? " bg-blood text-white" : " glass text-bone")}>
                   Site texts
@@ -492,8 +637,9 @@ export default function Admin() {
         {setupDone && authLoading && !user && <p className="text-center text-bone/50">Checking login…</p>}
 
         {/* login feedback + panel */}
-        {msg && <p className="mb-4 text-center text-sm font-bold text-green-400">{msg.text}</p>}
+        {msg && <p className={`mb-4 text-center text-sm font-bold ${msg.ok ? "text-green-400" : "text-red-400"}`}>{msg.text}</p>}
         {setupDone && user && tab === "products" && <ProductsTab cloudReady />}
+        {setupDone && user && tab === "orders" && <OrdersTab cloudReady flash={flash} />}
         {setupDone && user && tab === "texts" && content && <TextsTab content={content} />}
         {setupDone && user && tab === "texts" && !content && (
           <p className="text-center text-bone/50">Loading texts…</p>

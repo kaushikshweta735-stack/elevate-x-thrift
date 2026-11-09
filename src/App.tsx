@@ -16,7 +16,7 @@ import { Shop, CartDrawer } from "./components/Shop";
 import Admin from "./components/Admin";
 import { products, type Product } from "./data";
 import { DEFAULT_CONTENT, type SiteContent } from "./content";
-import { subscribeProducts, subscribeContent } from "./lib/firebase";
+import { placeOrder, subscribeProducts, subscribeContent, type OrderContact } from "./lib/firebase";
 
 /* --------------------------- tiny hash router --------------------------- */
 function useHashRoute(): string {
@@ -69,6 +69,20 @@ function Storefront() {
 
   const bagItems = items.filter((p) => cart.includes(p.id));
 
+  /** checkout → save to Firestore; on failure the drawer shows a WhatsApp fallback */
+  const handlePlaceOrder = async (info: OrderContact): Promise<"placed"> => {
+    await placeOrder({
+      name: info.name.trim(),
+      phone: info.phone.trim(),
+      note: info.note.trim(),
+      items: bagItems.map((p) => ({ id: p.id, name: p.name, price: p.price })),
+      total: bagItems.reduce((s, p) => s + p.price, 0),
+    });
+    setCart([]);
+    flash("Order received — we'll WhatsApp you shortly! 🖤");
+    return "placed";
+  };
+
   return (
     <div className="relative min-h-screen">
       <Background />
@@ -99,18 +113,17 @@ function Storefront() {
         </svg>
       </a>
 
-      <CartDrawer
-        open={open}
-        items={bagItems}
-        currency={content.currency}
-        onClose={() => setOpen(false)}
-        onRemove={toggle}
-        onCheckout={() => {
-          setCart([]);
-          setOpen(false);
-          flash("Order placed — thanks for thrifting! 🖤");
-        }}
-      />
+      {open && (
+        <CartDrawer
+          open={open}
+          items={bagItems}
+          currency={content.currency}
+          whatsapp={content.contactWhatsappNumber}
+          onClose={() => setOpen(false)}
+          onRemove={toggle}
+          onPlaceOrder={handlePlaceOrder}
+        />
+      )}
 
       {toast && (
         <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4">

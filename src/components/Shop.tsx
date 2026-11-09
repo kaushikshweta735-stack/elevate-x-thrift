@@ -3,6 +3,11 @@ import Garment from "./Garment";
 import { SectionTitle, Reveal } from "./ui";
 import type { Category, Product } from "../data";
 import type { SiteContent } from "../content";
+import type { OrderContact } from "../lib/firebase";
+
+const fieldCls =
+  "w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-bone outline-none transition focus:border-blood/70";
+const fieldLabelCls = "mb-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-bone/45";
 
 const filters: ("All" | Category)[] = ["All", "Vintage", "Streetwear", "More"];
 const sorts = [
@@ -142,19 +147,49 @@ export function CartDrawer({
   open,
   items,
   currency = "₹",
+  whatsapp,
   onClose,
   onRemove,
-  onCheckout,
+  onPlaceOrder,
 }: {
   open: boolean;
   items: Product[];
   currency?: string;
+  /** store WhatsApp number — fallback link if the order desk can't be reached */
+  whatsapp: string;
   onClose: () => void;
   onRemove: (p: Product) => void;
-  onCheckout: () => void;
+  onPlaceOrder: (info: OrderContact) => Promise<"placed">;
 }) {
   const total = items.reduce((s, p) => s + p.price, 0);
+  const [view, setView] = useState<"bag" | "details" | "placed">("bag");
+  const [contact, setContact] = useState<OrderContact>({ name: "", phone: "", note: "" });
+  const [busy, setBusy] = useState(false);
+  const [waError, setWaError] = useState(false);
+
   if (!open) return null;
+
+  const waText = encodeURIComponent(
+    `Hi! I'd like to order:\n${items
+      .map((p) => `• ${p.name} (${p.size}) — ${currency}${p.price}`)
+      .join("\n")}\nTotal: ${currency}${total}\nName: ${contact.name.trim()}\nPhone: ${contact.phone.trim()}${
+      contact.note.trim() ? `\nNote: ${contact.note.trim()}` : ""
+    }`,
+  );
+
+  const place = async () => {
+    if (busy) return;
+    setWaError(false);
+    setBusy(true);
+    try {
+      await onPlaceOrder({ ...contact });
+      setView("placed");
+    } catch {
+      setWaError(true);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50">
@@ -169,58 +204,159 @@ export function CartDrawer({
           </button>
         </div>
 
-        <div className="mt-6 flex-1 space-y-3 overflow-y-auto pr-1">
-          {items.length === 0 && (
-            <div className="grid h-full place-items-center text-center">
-              <div>
-                <div className="swing mx-auto w-36">
-                  <Garment type="hoodie" color="#444" />
-                </div>
-                <p className="mt-2 font-display text-2xl uppercase tracking-widest text-bone/60">Bag's empty</p>
-                <p className="text-sm text-bone/40">Go find something one-of-a-kind.</p>
+        {view === "placed" ? (
+          <div className="grid flex-1 place-items-center text-center">
+            <div className="pop glass rounded-3xl p-8">
+              <div className="pop mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#25d366] text-3xl text-white shadow-[0_10px_30px_rgba(37,211,102,0.5)]">
+                ✓
               </div>
+              <h3 className="mt-4 font-display text-3xl font-extrabold uppercase">Order received!</h3>
+              <p className="mt-2 text-sm leading-relaxed text-bone/60">
+                Thanks for thrifting 🖤 We'll WhatsApp{" "}
+                <span className="font-bold text-bone">{contact.phone}</span> shortly to confirm your pieces &amp;
+                delivery.
+              </p>
+              <button
+                onClick={onClose}
+                className="mt-5 w-full rounded-full bg-blood py-3 font-display text-lg font-bold uppercase tracking-widest text-white transition hover:scale-[1.02] active:scale-95"
+              >
+                Done
+              </button>
             </div>
-          )}
-          {items.map((p) => (
-            <div key={p.id} className="glass pop flex items-center gap-4 rounded-2xl p-3">
-              <div className="w-16 shrink-0 rounded-xl bg-white/5 p-1">
-                <Garment type={p.type} color={p.color} flutter={false} />
+          </div>
+        ) : view === "details" && waError ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+            <div className="glass-red pop rounded-3xl p-6">
+              <p className="font-display text-2xl font-bold uppercase">Can't reach the order desk 😕</p>
+              <p className="mt-2 text-sm text-bone/60">
+                No worries — send your order straight to our WhatsApp and we'll take it from there:
+              </p>
+            </div>
+            <a
+              href={`https://wa.me/${whatsapp}?text=${waText}`}
+              target="_blank"
+              rel="noreferrer"
+              className="w-full rounded-full bg-[#25d366] py-4 font-display text-lg font-bold uppercase tracking-widest text-white shadow-[0_10px_36px_rgba(37,211,102,0.45)] transition hover:scale-[1.02] active:scale-95"
+            >
+              Send order on WhatsApp →
+            </a>
+            <button onClick={() => setWaError(false)} className="text-sm text-bone/60 underline hover:text-bone">
+              try again
+            </button>
+          </div>
+        ) : view === "details" ? (
+          <div className="mt-6 flex-1 space-y-3 overflow-y-auto pr-1">
+            <p className="text-sm text-bone/60">One quick thing — where should we reach you to confirm the order?</p>
+            <label className="block">
+              <span className={fieldLabelCls}>Your name</span>
+              <input
+                required
+                className={fieldCls}
+                value={contact.name}
+                onChange={(e) => setContact({ ...contact, name: e.target.value })}
+                placeholder="e.g. Kartik"
+              />
+            </label>
+            <label className="block">
+              <span className={fieldLabelCls}>Phone / WhatsApp number</span>
+              <input
+                required
+                inputMode="tel"
+                className={fieldCls}
+                value={contact.phone}
+                onChange={(e) => setContact({ ...contact, phone: e.target.value })}
+                placeholder="e.g. 98XXXXXXXX"
+              />
+            </label>
+            <label className="block">
+              <span className={fieldLabelCls}>Note (optional)</span>
+              <textarea
+                rows={2}
+                className={fieldCls + " resize-y"}
+                value={contact.note}
+                onChange={(e) => setContact({ ...contact, note: e.target.value })}
+                placeholder="Delivery address, size questions…"
+              />
+            </label>
+            <p className="text-xs text-bone/40">No online payment needed — we confirm everything on WhatsApp first.</p>
+          </div>
+        ) : (
+          <div className="mt-6 flex-1 space-y-3 overflow-y-auto pr-1">
+            {items.length === 0 && (
+              <div className="grid h-full place-items-center text-center">
+                <div>
+                  <div className="swing mx-auto w-36">
+                    <Garment type="hoodie" color="#444" />
+                  </div>
+                  <p className="mt-2 font-display text-2xl uppercase tracking-widest text-bone/60">Bag's empty</p>
+                  <p className="text-sm text-bone/40">Go find something one-of-a-kind.</p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-display text-xl font-bold uppercase">{p.name}</p>
-                <p className="text-xs text-bone/50">
-                  Size {p.size} · {p.condition}
-                </p>
+            )}
+            {items.map((p) => (
+              <div key={p.id} className="glass pop flex items-center gap-4 rounded-2xl p-3">
+                <div className="w-16 shrink-0 rounded-xl bg-white/5 p-1">
+                  <Garment type={p.type} color={p.color} flutter={false} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-display text-xl font-bold uppercase">{p.name}</p>
+                  <p className="text-xs text-bone/50">
+                    Size {p.size} · {p.condition}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-display text-xl font-bold">
+                    {currency}
+                    {p.price}
+                  </p>
+                  <button onClick={() => onRemove(p)} className="text-xs text-blood hover:underline">
+                    Remove
+                  </button>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="font-display text-xl font-bold">
-                  {currency}
-                  {p.price}
-                </p>
-                <button onClick={() => onRemove(p)} className="text-xs text-blood hover:underline">
-                  Remove
+            ))}
+          </div>
+        )}
+
+        {view !== "placed" && (
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <div className="flex items-center justify-between font-display text-2xl font-bold uppercase">
+              <span>Total</span>
+              <span>
+                {currency}
+                {total}
+              </span>
+            </div>
+            {view === "bag" ? (
+              <button
+                disabled={!items.length}
+                onClick={() => setView("details")}
+                className="mt-4 w-full rounded-full bg-blood py-4 font-display text-xl font-bold uppercase tracking-widest text-white shadow-[0_10px_36px_rgba(225,29,29,0.5)] transition enabled:hover:scale-[1.02] enabled:active:scale-95 disabled:opacity-40"
+              >
+                Checkout
+              </button>
+            ) : (
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => {
+                    setWaError(false);
+                    setView("bag");
+                  }}
+                  className="rounded-full glass px-5 py-3 font-display text-sm font-bold uppercase tracking-widest text-bone transition hover:bg-white/10 active:scale-95"
+                >
+                  ← Bag
+                </button>
+                <button
+                  onClick={() => void place()}
+                  disabled={busy || !contact.name.trim() || !contact.phone.trim()}
+                  className="flex-1 rounded-full bg-blood py-3 font-display text-lg font-bold uppercase tracking-widest text-white shadow-[0_10px_36px_rgba(225,29,29,0.5)] transition enabled:hover:scale-[1.02] enabled:active:scale-95 disabled:opacity-40"
+                >
+                  {busy ? "Placing…" : "Confirm order →"}
                 </button>
               </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 border-t border-white/10 pt-4">
-          <div className="flex items-center justify-between font-display text-2xl font-bold uppercase">
-            <span>Total</span>
-            <span>
-              {currency}
-              {total}
-            </span>
+            )}
           </div>
-          <button
-            disabled={!items.length}
-            onClick={onCheckout}
-            className="mt-4 w-full rounded-full bg-blood py-4 font-display text-xl font-bold uppercase tracking-widest text-white shadow-[0_10px_36px_rgba(225,29,29,0.5)] transition enabled:hover:scale-[1.02] enabled:active:scale-95 disabled:opacity-40"
-          >
-            Checkout
-          </button>
-        </div>
+        )}
       </aside>
     </div>
   );

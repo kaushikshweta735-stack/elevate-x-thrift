@@ -1,10 +1,8 @@
 /**
- * Firebase layer — products + site content + admin auth.
- *
- * ⏳ SETUP: paste your firebaseConfig values below (Firebase console →
- *    Project settings → Your apps → Web app → config).
- *    Nothing else needs to change. Until apiKey is set, the site runs
- *    on bundled defaults and the admin panel shows a setup screen.
+ * Firebase layer — products + site content + orders + admin auth.
+ * Storefront reads products/content live (bundled defaults as fallback);
+ * the admin panel writes products/texts; customers create orders.
+ * Admin login: Firebase Authentication email/password.
  */
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import {
@@ -16,12 +14,16 @@ import {
   type User,
 } from "firebase/auth";
 import {
+  addDoc,
   collection,
   deleteDoc,
   doc,
   getFirestore,
   onSnapshot,
+  orderBy,
+  query,
   setDoc,
+  updateDoc,
   writeBatch,
   type Firestore,
 } from "firebase/firestore";
@@ -29,15 +31,15 @@ import { products as defaultProducts, type Product } from "../data";
 import { DEFAULT_CONTENT, type SiteContent } from "../content";
 
 /* ------------------------------------------------------------------ */
-/*  👇 PASTE YOUR FIREBASE CONFIG VALUES HERE 👇                       */
+/*  Firebase web app config (project: elevate-x-thrift)                */
 /* ------------------------------------------------------------------ */
 export const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
+  apiKey: "AIzaSyDh-iXTnoQgDItiO4fSdsjnvmK_7KhRTRI",
+  authDomain: "elevate-x-thrift.firebaseapp.com",
+  projectId: "elevate-x-thrift",
+  storageBucket: "elevate-x-thrift.firebasestorage.app",
+  messagingSenderId: "63811587714",
+  appId: "1:63811587714:web:071dd65e9de266acee2e9b",
 };
 /* ------------------------------------------------------------------ */
 
@@ -117,6 +119,89 @@ export async function deleteProduct(id: number): Promise<void> {
 export async function saveContent(c: SiteContent): Promise<void> {
   if (!ensure() || !db) throw new Error("Firebase is not configured yet");
   await setDoc(doc(db, "content", "site"), clean(c));
+}
+
+/* ------------------------------- orders ------------------------------ */
+
+export interface OrderContact {
+  name: string;
+  phone: string;
+  note: string;
+}
+
+export interface OrderItem {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export interface StoreOrder {
+  docId: string;
+  name: string;
+  phone: string;
+  note: string;
+  items: OrderItem[];
+  total: number;
+  placedAt: number;
+  status: "new" | "done";
+}
+
+/** customer checkout — public create, so anyone can order */
+export async function placeOrder(
+  info: OrderContact & { items: OrderItem[]; total: number },
+): Promise<string> {
+  if (!ensure() || !db) throw new Error("Firebase is not configured yet");
+  const payload = clean({
+    name: info.name.slice(0, 120),
+    phone: info.phone.slice(0, 40),
+    note: info.note.slice(0, 500),
+    items: info.items
+      .slice(0, 50)
+      .map((i) => ({ id: i.id, name: String(i.name).slice(0, 120), price: Number(i.price) || 0 })),
+    total: Number(info.total) || 0,
+    status: "new",
+    placedAt: Date.now(),
+  });
+  const ref = await addDoc(collection(db, "orders"), payload);
+  return ref.id;
+}
+
+/** live orders feed for the admin panel (authenticated read only) */
+export function subscribeOrders(cb: (list: StoreOrder[]) => void): () => void {
+  if (!ensure() || !db) return () => {};
+  return onSnapshot(
+    query(collection(db, "orders"), orderBy("placedAt", "desc")),
+    (snap) =>
+      cb(
+        snap.docs.map((d) => {
+          const x = d.data() as Partial<StoreOrder> & { items?: OrderItem[] };
+          return {
+            docId: d.id,
+            name: x.name ?? "—",
+            phone: x.phone ?? "",
+            note: x.note ?? "",
+            items: Array.isArray(x.items) ? x.items : [],
+            total: typeof x.total === "number" ? x.total : 0,
+            placedAt: typeof x.placedAt === "number" ? x.placedAt : 0,
+            status: x.status === "done" ? "done" : "new",
+          };
+        }),
+      ),
+    (err) => {
+      console.warn("[orders] read failed:", err);
+      cb([]);
+    },
+  );
+}
+
+export async function setOrderStatus(docId: string, status: "new" | "done"): Promise<void> {
+  if (!ensure() || !db) throw new Error("Firebase is not configured yet");
+  await updateDoc(doc(db, "orders", docId), { status });
+}
+
+export async function deleteOrder(docId: string): Promise<void> {
+  if (!ensure() || !db) throw new Error("Firebase is not configured yet");
+  await deleteDoc(doc(db, "orders", docId));
 }
 
 /** write the bundled defaults (12 products + site texts) up to Firestore */
