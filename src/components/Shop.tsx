@@ -1,29 +1,43 @@
 import { useState, type CSSProperties } from "react";
 import Garment from "./Garment";
 import { SectionTitle, Reveal } from "./ui";
-import { products, type Category, type Product } from "../data";
+import type { Category, Product } from "../data";
+import type { SiteContent } from "../content";
 
 const filters: ("All" | Category)[] = ["All", "Vintage", "Streetwear", "More"];
+const sorts = [
+  ["new", "Newest"],
+  ["low", "Price ↑"],
+  ["high", "Price ↓"],
+] as const;
 
 export function Shop({
+  content,
+  products,
   cart,
   onToggle,
 }: {
+  content: SiteContent;
+  products: Product[];
   cart: number[];
   onToggle: (p: Product) => void;
 }) {
   const [filter, setFilter] = useState<"All" | Category>("All");
+  const [sort, setSort] = useState<(typeof sorts)[number][0]>("new");
   const [liked, setLiked] = useState<number[]>([]);
-  const list = filter === "All" ? products : products.filter((p) => p.category === filter);
+
+  let list: Product[] = filter === "All" ? products : products.filter((p) => p.category === filter);
+  if (sort === "low") list = [...list].sort((a, b) => a.price - b.price);
+  if (sort === "high") list = [...list].sort((a, b) => b.price - a.price);
 
   return (
     <section id="shop" className="relative px-4 py-24 sm:px-8">
       <div className="mx-auto max-w-7xl">
-        <SectionTitle kicker="Latest finds" title="Shop the drop" script="Fresh">
-          One of each. Add it to your bag before someone else does.
+        <SectionTitle kicker={content.shopKicker} title={content.shopTitle} script={content.shopScript}>
+          {content.shopNote}
         </SectionTitle>
 
-        <Reveal className="mb-10 flex justify-center">
+        <Reveal className="mb-6 flex flex-wrap items-center justify-center gap-3">
           <div className="glass flex flex-wrap justify-center gap-1 rounded-full p-1.5">
             {filters.map((f) => (
               <button
@@ -36,6 +50,19 @@ export function Shop({
                 }`}
               >
                 {f}
+              </button>
+            ))}
+          </div>
+          <div className="glass flex gap-1 rounded-full p-1.5">
+            {sorts.map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setSort(id)}
+                className={`rounded-full px-4 py-2 font-display text-sm font-bold uppercase tracking-widest transition ${
+                  sort === id ? "bg-white/15 text-white" : "text-bone/60 hover:bg-white/10"
+                }`}
+              >
+                {label}
               </button>
             ))}
           </div>
@@ -87,7 +114,10 @@ export function Shop({
                 </div>
 
                 <div className="mt-4 flex items-center justify-between">
-                  <span className="font-display text-3xl font-extrabold">${p.price}</span>
+                  <span className="font-display text-3xl font-extrabold">
+                    {content.currency}
+                    {p.price}
+                  </span>
                   <button
                     onClick={() => onToggle(p)}
                     className={`rounded-full px-5 py-2.5 font-display text-lg font-bold uppercase tracking-widest transition active:scale-95 ${
@@ -111,12 +141,14 @@ export function Shop({
 export function CartDrawer({
   open,
   items,
+  currency = "₹",
   onClose,
   onRemove,
   onCheckout,
 }: {
   open: boolean;
   items: Product[];
+  currency?: string;
   onClose: () => void;
   onRemove: (p: Product) => void;
   onCheckout: () => void;
@@ -161,7 +193,10 @@ export function CartDrawer({
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-display text-xl font-bold">${p.price}</p>
+                <p className="font-display text-xl font-bold">
+                  {currency}
+                  {p.price}
+                </p>
                 <button onClick={() => onRemove(p)} className="text-xs text-blood hover:underline">
                   Remove
                 </button>
@@ -173,7 +208,10 @@ export function CartDrawer({
         <div className="mt-4 border-t border-white/10 pt-4">
           <div className="flex items-center justify-between font-display text-2xl font-bold uppercase">
             <span>Total</span>
-            <span>${total}</span>
+            <span>
+              {currency}
+              {total}
+            </span>
           </div>
           <button
             disabled={!items.length}
