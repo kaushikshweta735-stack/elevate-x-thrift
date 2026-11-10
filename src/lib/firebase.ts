@@ -79,7 +79,7 @@ export function subscribeProducts(cb: (list: Product[], cloudEmpty: boolean) => 
       const list = snap.docs.map((d) => {
         const data = d.data() as Partial<Product> & { id?: unknown };
         const id = typeof data.id === "number" ? data.id : Number(d.id);
-        return { ...(data as Product), id: Number.isFinite(id) ? id : 0 };
+        return { ...(data as Product), id: Number.isFinite(id) ? id : 0, docPath: d.id };
       });
       cb(list, false);
     },
@@ -108,12 +108,14 @@ export function subscribeContent(cb: (c: SiteContent) => void): () => void {
 
 export async function saveProduct(p: Product): Promise<void> {
   if (!ensure() || !db) throw new Error("Firebase is not configured yet");
-  await setDoc(doc(db, "products", String(p.id)), clean(p));
+  /* writes go to the product's real cloud doc (its snapshot id); fresh cards use the timestamp id */
+  const { docPath, ...data } = p;
+  await setDoc(doc(db, "products", docPath ?? String(p.id)), clean(data));
 }
 
-export async function deleteProduct(id: number): Promise<void> {
+export async function deleteProduct(p: Product): Promise<void> {
   if (!ensure() || !db) throw new Error("Firebase is not configured yet");
-  await deleteDoc(doc(db, "products", String(id)));
+  await deleteDoc(doc(db, "products", p.docPath ?? String(p.id)));
 }
 
 export async function saveContent(c: SiteContent): Promise<void> {

@@ -134,7 +134,7 @@ function ProductCard({
     if (!window.confirm(`Delete “${draft.name}” permanently?`)) return;
     setBusy(true);
     try {
-      await deleteProduct(draft.id);
+      await deleteProduct(draft);
       flash("Deleted");
     } catch (e) {
       flash(String(e), false);

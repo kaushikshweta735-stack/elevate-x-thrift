@@ -14,6 +14,8 @@ export interface Product {
   tag?: string;
   /** optional product photo as a compressed JPEG data URL; the illustrated garment shows when absent */
   image?: string;
+  /** Firestore document id for this product — set from the cloud snapshot; internal bookkeeping, never stored */
+  docPath?: string;
 }
 
 export const products: Product[] = [
