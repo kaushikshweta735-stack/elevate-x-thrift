@@ -14,7 +14,7 @@ import {
 } from "./components/Sections";
 import { Shop, CartDrawer } from "./components/Shop";
 import Admin from "./components/Admin";
-import { products, type Product } from "./data";
+import type { Product } from "./data";
 import { DEFAULT_CONTENT, type SiteContent } from "./content";
 import { placeOrder, subscribeProducts, subscribeContent, type OrderContact } from "./lib/firebase";
 
@@ -40,7 +40,7 @@ function Storefront() {
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [content, setContent] = useState<SiteContent>(DEFAULT_CONTENT);
-  const [items, setItems] = useState<Product[]>(products);
+  const [items, setItems] = useState<Product[]>([]);
 
   /* live data from Firebase (falls back to bundled defaults) */
   useEffect(() => {

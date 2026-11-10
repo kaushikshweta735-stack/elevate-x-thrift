@@ -42,7 +42,34 @@ export function Shop({
           {content.shopNote}
         </SectionTitle>
 
-        <Reveal className="mb-6 flex flex-wrap items-center justify-center gap-3">
+        {products.length === 0 ? (
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <div className="glass-dark relative overflow-hidden rounded-[2rem] p-10 sm:p-14">
+              <div className="mx-auto w-28" style={{ ["--d" as string]: "5.5s" } as CSSProperties}>
+                <Garment type="hoodie" color="#e11d1d" />
+              </div>
+              <h3 className="mt-6 font-display text-4xl font-extrabold uppercase tracking-tight">The rack is empty</h3>
+              <p className="mx-auto mt-3 max-w-md text-bone/60">
+                New thrift finds are being curated right now. When the next one-of-one goes live it shows up here
+                first — get the heads-up so you don't miss the drop.
+              </p>
+              {content.contactWhatsappNumber && (
+                <a
+                  href={`https://wa.me/${content.contactWhatsappNumber}?text=${encodeURIComponent(
+                    "Hi! Tell me when you drop the next one-of-one ✦",
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-8 inline-flex items-center gap-2 rounded-full bg-blood px-7 py-3.5 font-display text-lg font-bold uppercase tracking-widest text-white shadow-[0_10px_36px_rgba(225,29,29,0.45)] transition hover:scale-[1.03] active:scale-95"
+                >
+                  Get first pick on WhatsApp
+                </a>
+              )}
+            </div>
+          </Reveal>
+        ) : (
+          <>
+            <Reveal className="mb-6 flex flex-wrap items-center justify-center gap-3">
           <div className="glass flex flex-wrap justify-center gap-1 rounded-full p-1.5">
             {filters.map((f) => (
               <button
@@ -149,7 +176,9 @@ export function Shop({
               </article>
             );
           })}
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </section>
   );

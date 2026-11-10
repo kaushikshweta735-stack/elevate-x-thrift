@@ -63,9 +63,9 @@ function clean<T>(obj: T): T {
 }
 
 /**
- * Live product list; falls back to bundled defaults when the cloud is
- * empty or unreachable. `cloudEmpty` is true until the admin seeds the
- * store, so the panel can offer the one-click seeding button.
+ * Live product list straight from the cloud — only items the admin really
+ * saved reach the storefront (never the bundled demo list). `cloudEmpty`
+ * is true until products exist, driving the admin's seed/restore banner.
  */
 export function subscribeProducts(cb: (list: Product[], cloudEmpty: boolean) => void): () => void {
   if (!ensure() || !db) return () => {};
@@ -73,7 +73,7 @@ export function subscribeProducts(cb: (list: Product[], cloudEmpty: boolean) => 
     collection(db, "products"),
     (snap) => {
       if (snap.empty) {
-        cb(defaultProducts, true);
+        cb([], true);
         return;
       }
       const list = snap.docs.map((d) => {
@@ -85,7 +85,7 @@ export function subscribeProducts(cb: (list: Product[], cloudEmpty: boolean) => 
     },
     (err) => {
       console.warn("[products] read failed:", err);
-      cb(defaultProducts, false);
+      cb([], false);
     },
   );
 }
