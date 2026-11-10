@@ -39,7 +39,7 @@ export function Navbar({
   return (
     <header className="fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-6">
       <nav
-        className={`glass mx-auto flex max-w-7xl items-center justify-between rounded-full px-3 py-2 transition-all duration-500 sm:px-5 ${
+        className={`glass-nav glass mx-auto flex max-w-7xl items-center justify-between rounded-full px-3 py-2 transition-all duration-500 sm:px-5 ${
           scrolled ? "shadow-[0_10px_50px_rgba(225,29,29,0.25)]" : ""
         }`}
       >
@@ -103,7 +103,7 @@ export function Navbar({
       </nav>
 
       {open && (
-        <div className="glass pop mx-auto mt-2 max-w-7xl rounded-3xl p-3 lg:hidden">
+        <div className="glass-nav glass pop mx-auto mt-2 max-w-7xl rounded-3xl p-3 lg:hidden">
           {links.map(([l, h]) => (
             <a
               key={h}
