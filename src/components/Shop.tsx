@@ -99,14 +99,26 @@ export function Shop({
                 </button>
 
                 <div className="relative grid h-64 place-items-center overflow-hidden rounded-[1.4rem] bg-gradient-to-b from-white/[0.07] to-transparent">
-                  <div className="absolute h-40 w-40 rounded-full opacity-30 blur-3xl transition group-hover:opacity-60" style={{ background: p.color }} />
-                  <div className="absolute inset-x-8 top-[26px] h-0.5 rounded bg-bone/20" />
-                  <div
-                    className="swing relative w-44 transition-transform duration-500 group-hover:scale-110"
-                    style={{ ["--d" as string]: `${3.6 + (i % 3) * 0.5}s`, ["--delay" as string]: `${-i * 0.6}s` } as CSSProperties}
-                  >
-                    <Garment type={p.type} color={p.color} delay={-i * 0.4} />
-                  </div>
+                  {p.image ? (
+                    <img
+                      src={p.image}
+                      alt={p.name}
+                      loading="lazy"
+                      draggable={false}
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <>
+                      <div className="absolute h-40 w-40 rounded-full opacity-30 blur-3xl transition group-hover:opacity-60" style={{ background: p.color }} />
+                      <div className="absolute inset-x-8 top-[26px] h-0.5 rounded bg-bone/20" />
+                      <div
+                        className="swing relative w-44 transition-transform duration-500 group-hover:scale-110"
+                        style={{ ["--d" as string]: `${3.6 + (i % 3) * 0.5}s`, ["--delay" as string]: `${-i * 0.6}s` } as CSSProperties}
+                      >
+                        <Garment type={p.type} color={p.color} delay={-i * 0.4} />
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="mt-4 flex-1">
@@ -295,8 +307,14 @@ export function CartDrawer({
             )}
             {items.map((p) => (
               <div key={p.id} className="glass pop flex items-center gap-4 rounded-2xl p-3">
-                <div className="w-16 shrink-0 rounded-xl bg-white/5 p-1">
-                  <Garment type={p.type} color={p.color} flutter={false} />
+                <div className="w-16 shrink-0 overflow-hidden rounded-xl bg-white/5">
+                  {p.image ? (
+                    <img src={p.image} alt="" className="aspect-square w-full rounded-xl object-cover" />
+                  ) : (
+                    <div className="p-1">
+                      <Garment type={p.type} color={p.color} flutter={false} />
+                    </div>
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-display text-xl font-bold uppercase">{p.name}</p>

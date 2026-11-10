@@ -25,6 +25,7 @@ import {
   type StoreOrder,
 } from "../lib/firebase";
 import type { Category, Product } from "../data";
+import { compressImageFile } from "../lib/images";
 
 const GARMENT_TYPES: GarmentType[] = ["tee", "hoodie", "jacket", "jeans", "dress", "cap"];
 const CATEGORIES: Category[] = ["Vintage", "Streetwear", "More"];
@@ -88,11 +89,30 @@ function ProductCard({
 }) {
   const [draft, setDraft] = useState<Product>(product);
   const [busy, setBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const { msg, flash } = useFlash();
   const set = (patch: Partial<Product>) => setDraft((d) => ({ ...d, ...patch }));
 
+  /** read + shrink a chosen photo into a storable data URL */
+  const pickPhoto = async (file: File | undefined) => {
+    if (!file || photoBusy) return;
+    setPhotoBusy(true);
+    try {
+      set({ image: await compressImageFile(file) });
+      flash("Photo ready — press Save to put it live");
+    } catch (e) {
+      flash(String(e instanceof Error ? e.message : e), false);
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const save = async () => {
     if (!cloudReady) return flash("Connect Firebase first!", false);
+    if (photoBusy) return flash("Still processing the photo…", false);
+    if (draft.image && draft.image.length > 900_000)
+      return flash("Photo is too large to store — pick a smaller one", false);
     setBusy(true);
     try {
       await saveProduct(draft);
@@ -126,8 +146,12 @@ function ProductCard({
   return (
     <div className="glass-dark pop flex flex-col gap-3 rounded-2xl p-4" data-new-card={extra ? "" : undefined}>
       <div className="flex items-center gap-3">
-        <div className="glass w-14 shrink-0 rounded-xl p-1">
-          <Garment type={draft.type} color={draft.color} flutter={false} />
+        <div className="glass w-14 shrink-0 overflow-hidden rounded-xl p-1">
+          {draft.image ? (
+            <img src={draft.image} alt="" className="h-12 w-12 rounded-lg object-cover" />
+          ) : (
+            <Garment type={draft.type} color={draft.color} flutter={false} />
+          )}
         </div>
         <input
           className={inputCls + " font-display text-lg font-bold uppercase"}
@@ -136,6 +160,56 @@ function ProductCard({
           placeholder="Product name"
         />
       </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          pickPhoto(e.target.files?.[0]);
+          e.currentTarget.value = "";
+        }}
+      />
+      {draft.image ? (
+        <div className="relative overflow-hidden rounded-xl">
+          <img src={draft.image} alt="Product photo" className="h-32 w-full object-cover" />
+          <div className="absolute right-2 top-2 flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={photoBusy}
+              className={btnCls + " glass px-3 py-1 text-xs"}
+            >
+              Change
+            </button>
+            <button
+              type="button"
+              onClick={() => set({ image: undefined })}
+              disabled={photoBusy}
+              className={btnCls + " glass px-3 py-1 text-xs"}
+            >
+              Remove
+            </button>
+          </div>
+          {photoBusy && (
+            <div className="absolute inset-0 grid place-items-center bg-black/60 font-display text-xs font-bold uppercase tracking-widest">
+              Processing…
+            </div>
+          )}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={photoBusy}
+          className="grid w-full place-items-center rounded-xl border-2 border-dashed border-white/20 bg-black/20 px-4 py-4 text-sm font-bold uppercase tracking-widest text-bone/60 transition hover:border-blood/60 hover:text-bone active:scale-[0.99]"
+        >
+          <span>📷 Add photo</span>
+          <span className="text-[10px] tracking-[0.18em] text-bone/40">
+            {photoBusy ? "Processing photo…" : "optional — phone photos work fine"}
+          </span>
+        </button>
+      )}
       {extra && (
         <p className="text-xs font-bold uppercase tracking-widest text-blood">
           Add your product now — it isn't online until you press Save.

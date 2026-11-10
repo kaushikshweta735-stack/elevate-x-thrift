@@ -12,6 +12,8 @@ export interface Product {
   size: string;
   condition: string;
   tag?: string;
+  /** optional product photo as a compressed JPEG data URL; the illustrated garment shows when absent */
+  image?: string;
 }
 
 export const products: Product[] = [
