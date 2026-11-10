@@ -67,7 +67,7 @@ function useFlash() {
   const flash = (text: string, ok = true) => {
     setMsg({ text, ok });
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setMsg(null), 2600);
+    timer.current = window.setTimeout(() => setMsg(null), 4000);
   };
   useEffect(() => () => window.clearTimeout(timer.current), []);
   return { msg, flash };
@@ -124,7 +124,7 @@ function ProductCard({
   };
 
   return (
-    <div className="glass-dark pop flex flex-col gap-3 rounded-2xl p-4">
+    <div className="glass-dark pop flex flex-col gap-3 rounded-2xl p-4" data-new-card={extra ? "" : undefined}>
       <div className="flex items-center gap-3">
         <div className="glass w-14 shrink-0 rounded-xl p-1">
           <Garment type={draft.type} color={draft.color} flutter={false} />
@@ -136,6 +136,11 @@ function ProductCard({
           placeholder="Product name"
         />
       </div>
+      {extra && (
+        <p className="text-xs font-bold uppercase tracking-widest text-blood">
+          Add your product now — it isn't online until you press Save.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <label className="block">
@@ -198,7 +203,7 @@ function ProductCard({
 
       <div className="flex items-center gap-2">
         <button onClick={save} disabled={busy} className={btnCls + " bg-blood text-white"}>
-          Save
+          {busy ? "Saving…" : "Save"}
         </button>
         <button onClick={remove} disabled={busy} className={btnCls + " glass text-bone hover:bg-white/10"}>
           {extra ? "Discard" : "Delete"}
@@ -242,6 +247,13 @@ function ProductsTab({ cloudReady }: { cloudReady: boolean }) {
         condition: "Great",
       },
     ]);
+    /* bring the fresh card into view so it's obvious something happened */
+    window.setTimeout(() => {
+      const cards = document.querySelectorAll<HTMLElement>("[data-new-card]");
+      const last = cards[cards.length - 1];
+      if (last) last.scrollIntoView({ behavior: "smooth", block: "center" });
+      flash("New product card added below — fill it in and press Save ✓");
+    }, 60);
   };
 
   const seed = async () => {
@@ -284,7 +296,10 @@ function ProductsTab({ cloudReady }: { cloudReady: boolean }) {
           product={p}
           extra={extras.includes(p)}
           cloudReady={cloudReady}
-          onSaved={(saved) => setExtras((xs) => xs.filter((x) => x.id !== saved.id))}
+          onSaved={(saved) => {
+            setExtras((xs) => xs.filter((x) => x.id !== saved.id));
+            flash(`“${saved.name}” saved — live on the site now ✓`);
+          }}
         />
       ))}
       {msg && <p className={`text-sm font-bold ${msg.ok ? "text-green-400" : "text-red-400"}`}>{msg.text}</p>}
